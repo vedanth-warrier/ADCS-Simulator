@@ -822,13 +822,21 @@ them instead of overlaid on a scene that no longer exists. */
 /* Overrides for when script.js moves the pills into #adaptive-pills-row: they
 normally overlay the 3D view's corners via absolute positioning, but here
 they sit in a plain row instead - the saturation/stability group on the left
-(X/Y/Z Saturated, then Satellite Stable/Unstable on its own line below that,
-.saturation-pills already stacks that way internally) and the timescale pill
-on the right, with no need to share a vertical position. */
+(Satellite Stable/Unstable on top, X/Y/Z Saturated on its own line below
+that - reordered from seconds mode's stacking via `order` below, rather than
+duplicating the pill elements) and the timescale pill on the right, with no
+need to share a vertical position. */
 .adaptive-pills-row .saturation-pills {
     position: static;
     align-items: flex-start;
     gap: 0.6rem;
+}
+
+/* Swapped relative to seconds mode's overlay order (X/Y/Z on top there) -
+adaptive mode wants the overall stability pill leading, since that's the
+one-glance summary, with the per-axis detail underneath it. */
+.adaptive-pills-row #pill-stability {
+    order: -1;
 }
 
 .adaptive-pills-row #pill-timescale {
