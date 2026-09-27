@@ -340,11 +340,74 @@ function createWheelSpeedChart(canvasId, color) {
     });
 }
 
+// Adaptive mode's single combined graph: all three wheels as separate
+// datasets on shared axes instead of three separate charts. The legend's
+// circular dots (instead of Chart.js's default line-swatch) are what show
+// which coloured line is which wheel.
+function createCombinedWheelSpeedChart(canvasId) {
+    const axisDataset = (axis) => ({
+        label: axis.toUpperCase(),
+        data: [],
+        borderColor: AXIS_COLORS[axis],
+        backgroundColor: AXIS_COLORS[axis],
+        borderWidth: 1.5,
+        pointRadius: 0,
+        tension: 0.15,
+    });
+
+    return new Chart(document.getElementById(canvasId), {
+        type: "line",
+        data: {
+            labels: [],
+            datasets: ["x", "y", "z"].map(axisDataset),
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            animation: false,
+            plugins: {
+                legend: {
+                    display: true,
+                    position: "top",
+                    align: "end",
+                    labels: {
+                        color: "#8b95a5",
+                        font: { size: 10 },
+                        usePointStyle: true,
+                        pointStyle: "circle",
+                        boxWidth: 8,
+                        boxHeight: 8,
+                    },
+                },
+            },
+            scales: {
+                x: {
+                    type: "linear",
+                    min: 0,
+                    title: { display: true, text: "Time (s)", color: "#8b95a5", font: { size: 10 } },
+                    ticks: {
+                        color: "#8b95a5",
+                        font: { size: 9 },
+                        callback: (value) => Number(value).toFixed(1),
+                    },
+                    grid: { color: "rgba(139, 149, 165, 0.12)" },
+                },
+                y: {
+                    title: { display: true, text: "Speed (RPM)", color: "#8b95a5", font: { size: 10 } },
+                    ticks: { color: "#8b95a5", font: { size: 9 } },
+                    grid: { color: "rgba(139, 149, 165, 0.12)" },
+                },
+            },
+        },
+    });
+}
+
 function initWheelSpeedCharts() {
     wheelSpeedCharts = {
         x: createWheelSpeedChart("graph-wheel-x", AXIS_COLORS.x),
         y: createWheelSpeedChart("graph-wheel-y", AXIS_COLORS.y),
         z: createWheelSpeedChart("graph-wheel-z", AXIS_COLORS.z),
+        combined: createCombinedWheelSpeedChart("graph-wheel-combined"),
     };
 }
 
@@ -375,8 +438,7 @@ const TIME_AXIS_LABELS = {
 // in updateWheelSpeedCharts() below.
 function configureChartTimeAxisLabel() {
     const label = TIME_AXIS_LABELS[currentTimeframe] || "Time";
-    ["x", "y", "z"].forEach((axis) => {
-        const chart = wheelSpeedCharts[axis];
+    Object.values(wheelSpeedCharts).forEach((chart) => {
         chart.options.scales.x.title.text = label;
         chart.update();
     });
@@ -398,13 +460,26 @@ function updateWheelSpeedCharts(simulationData, uptoIndex) {
     // that noise in the axis's own boundary made Chart.js's tick layout
     // recompute slightly differently frame to frame, visible as a jitter.
     const currentMax = Math.ceil(time[end - 1] * 10) / 10;
+    const stepSize = niceTimeStep(currentMax);
+    const slicedTime = time.slice(0, end);
+
     ["x", "y", "z"].forEach((axis) => {
         const chart = wheelSpeedCharts[axis];
-        chart.data.datasets[0].data = time.slice(0, end).map((t, i) => ({ x: t, y: rpm[axis][i] }));
+        chart.data.datasets[0].data = slicedTime.map((t, i) => ({ x: t, y: rpm[axis][i] }));
         chart.options.scales.x.max = currentMax;
-        chart.options.scales.x.ticks.stepSize = niceTimeStep(currentMax);
+        chart.options.scales.x.ticks.stepSize = stepSize;
         chart.update();
     });
+
+    // Combined chart: same three series, but as three datasets sharing one
+    // set of axes instead of three separate charts.
+    const combinedChart = wheelSpeedCharts.combined;
+    ["x", "y", "z"].forEach((axis, i) => {
+        combinedChart.data.datasets[i].data = slicedTime.map((t, j) => ({ x: t, y: rpm[axis][j] }));
+    });
+    combinedChart.options.scales.x.max = currentMax;
+    combinedChart.options.scales.x.ticks.stepSize = stepSize;
+    combinedChart.update();
 }
 
 function resetWheelSpeedCharts() {
@@ -412,6 +487,8 @@ function resetWheelSpeedCharts() {
         wheelSpeedCharts[axis].data.datasets[0].data = [];
         wheelSpeedCharts[axis].update();
     });
+    wheelSpeedCharts.combined.data.datasets.forEach((dataset) => { dataset.data = []; });
+    wheelSpeedCharts.combined.update();
 }
 
 function fieldValue(id) {
@@ -796,6 +873,12 @@ const SECTION_VISIBILITY = {
 
 const workspaceEl = document.querySelector(".workspace");
 const adaptivePillsRow = document.getElementById("adaptive-pills-row");
+const perAxisGraphPanels = [
+    document.getElementById("graph-panel-x"),
+    document.getElementById("graph-panel-y"),
+    document.getElementById("graph-panel-z"),
+];
+const combinedGraphPanel = document.getElementById("graph-panel-combined");
 
 // Drives everything that depends on which timeframe is selected: which input
 // sections are shown, whether the workspace is in "seconds" (3D + graphs) or
@@ -812,6 +895,11 @@ function applyTimeframeVisibility() {
     const isAdaptive = currentTimeframe !== "seconds";
     workspaceEl.dataset.mode = isAdaptive ? "adaptive" : "seconds";
 
+    // Adaptive mode replaces the three separate per-axis graphs with one
+    // combined plot (all three wheels on shared axes) instead of showing both.
+    perAxisGraphPanels.forEach((panel) => { panel.hidden = isAdaptive; });
+    combinedGraphPanel.hidden = !isAdaptive;
+
     if (isAdaptive) {
         adaptivePillsRow.appendChild(saturationPillsContainer);
         adaptivePillsRow.appendChild(pillTimescale);
@@ -824,56 +912,7 @@ function applyTimeframeVisibility() {
         pillTimescale.hidden = true;
         adaptivePillsRow.hidden = true;
     }
-
-    // Entering/leaving adaptive mode changes .graphs-row's own size (grid vs
-    // flex-row, scene-panel gone or not), so the square size needs
-    // recalculating right away rather than waiting on the next resize event.
-    resizeAdaptiveGraphSquares();
 }
-
-const graphsRowEl = document.querySelector(".graphs-row");
-
-// Sizes the 3 adaptive-mode graph canvases as squares that scale to fill
-// whichever of the row's available width/height is the tighter constraint (2
-// columns wide, 2 rows tall since Z sits centered under X/Y) - a fixed CSS
-// aspect-ratio alone can't do this for a 2-then-1 grid, since it has no way
-// to know the row's actual pixel budget in each direction.
-function resizeAdaptiveGraphSquares() {
-    if (currentTimeframe === "seconds") return;
-
-    const panels = graphsRowEl.querySelectorAll(".graph-panel");
-    if (panels.length === 0) return;
-
-    // clientWidth/clientHeight include the row's own padding, but the grid
-    // content is laid out inside the padding box - budgeting off the raw
-    // client size overstated the available space by the padding amount,
-    // which pushed the Z row's square past the panel's bottom edge.
-    const rowStyle = getComputedStyle(graphsRowEl);
-    const paddingX = parseFloat(rowStyle.paddingLeft) + parseFloat(rowStyle.paddingRight);
-    const paddingY = parseFloat(rowStyle.paddingTop) + parseFloat(rowStyle.paddingBottom);
-    const contentWidth = graphsRowEl.clientWidth - paddingX;
-    const contentHeight = graphsRowEl.clientHeight - paddingY;
-    if (contentWidth <= 0 || contentHeight <= 0) return;
-
-    const gapPx = parseFloat(rowStyle.gap) || 0;
-    // The title's own margin-bottom sits between it and the wrapper below,
-    // so measuring just the title element's height (not the gap after it)
-    // undercounted the space it takes up - use the actual title-top-to-
-    // wrap-top offset instead, which captures both.
-    const firstPanel = panels[0];
-    const titleOffset =
-        firstPanel.querySelector(".graph-canvas-wrap").getBoundingClientRect().top -
-        firstPanel.getBoundingClientRect().top;
-
-    const widthBudget = (contentWidth - gapPx) / 2;
-    const heightBudget = (contentHeight - gapPx) / 2 - titleOffset;
-    const squareSize = Math.max(60, Math.min(widthBudget, heightBudget));
-
-    graphsRowEl.style.setProperty("--adaptive-square-size", `${squareSize}px`);
-    Object.values(wheelSpeedCharts).forEach((chart) => chart.resize());
-}
-
-new ResizeObserver(resizeAdaptiveGraphSquares).observe(graphsRowEl);
 
 document.querySelectorAll('input[name="timeframe"]').forEach((radio) => {
     radio.addEventListener("change", (event) => {

@@ -364,22 +364,32 @@
             <div class="adaptive-pills-row" id="adaptive-pills-row" hidden></div>
 
             <section class="graphs-row">
-                <div class="panel graph-panel">
+                <div class="panel graph-panel" id="graph-panel-x">
                     <h2 class="panel-title">X Wheel Speed (RPM)</h2>
                     <div class="graph-canvas-wrap">
                         <canvas id="graph-wheel-x"></canvas>
                     </div>
                 </div>
-                <div class="panel graph-panel">
+                <div class="panel graph-panel" id="graph-panel-y">
                     <h2 class="panel-title">Y Wheel Speed (RPM)</h2>
                     <div class="graph-canvas-wrap">
                         <canvas id="graph-wheel-y"></canvas>
                     </div>
                 </div>
-                <div class="panel graph-panel">
+                <div class="panel graph-panel" id="graph-panel-z">
                     <h2 class="panel-title">Z Wheel Speed (RPM)</h2>
                     <div class="graph-canvas-wrap">
                         <canvas id="graph-wheel-z"></canvas>
+                    </div>
+                </div>
+                <!-- Adaptive mode only: replaces the three separate graphs above with
+                one shared plot (all three wheels on the same axes), the legend's
+                dots (see script.js's createCombinedWheelSpeedChart) are what show
+                which line is which wheel. -->
+                <div class="panel graph-panel" id="graph-panel-combined" hidden>
+                    <h2 class="panel-title">Wheel Speed (RPM)</h2>
+                    <div class="graph-canvas-wrap">
+                        <canvas id="graph-wheel-combined"></canvas>
                     </div>
                 </div>
             </section>

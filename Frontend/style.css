@@ -744,6 +744,14 @@ looks exactly as it always did the rest of the time */
     min-width: 0;
 }
 
+/* .panel's own display:flex (author stylesheet) otherwise beats the
+browser's native [hidden] behaviour, since author rules always win over the
+user-agent stylesheet regardless of specificity - same fix as the other
+pill/row elements toggled this way elsewhere on the page. */
+.graph-panel[hidden] {
+    display: none;
+}
+
 /* A dedicated wrapper, not the canvas itself, is what actually flex-fills
 the panel's remaining space (below the title) and what Chart.js's responsive
 mode measures - giving Chart.js a container with no sibling title inside it
@@ -775,11 +783,7 @@ them instead of overlaid on a scene that no longer exists. */
 
 .workspace[data-mode="adaptive"] .graphs-row {
     flex: 1 1 auto;
-    display: grid;
-    grid-template-columns: repeat(2, auto);
-    justify-content: center;
-    align-content: center;
-    gap: clamp(0.75rem, 1.5vw, 1.1rem);
+    display: flex;
     border: 1px solid transparent;
     border-radius: 10px;
     padding: 0.75rem;
@@ -797,26 +801,6 @@ them instead of overlaid on a scene that no longer exists. */
     backdrop-filter: none;
     -webkit-backdrop-filter: none;
     padding: 0;
-    width: auto;
-    height: auto;
-}
-
-/* Explicit size on the wrapper, not the canvas: Chart.js's responsive mode
-measures this wrapper (which holds nothing but the canvas) and actively
-resizes the canvas to fill it, so setting the canvas's own width/height
-directly just gets overridden. Sized by script.js from the row's actual
-pixel budget (limited by whichever of width/height runs out first). */
-.workspace[data-mode="adaptive"] .graph-canvas-wrap {
-    flex: none;
-    width: var(--adaptive-square-size, 200px);
-    height: var(--adaptive-square-size, 200px);
-}
-
-/* X and Y sit in the grid's two columns on row 1; Z spans both columns on
-row 2 so it centers underneath instead of sitting flush left. */
-.workspace[data-mode="adaptive"] .graph-panel:nth-child(3) {
-    grid-column: 1 / -1;
-    justify-self: center;
 }
 
 .adaptive-pills-row {
